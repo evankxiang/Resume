@@ -1,0 +1,606 @@
+
+
+\documentclass[
+	a4paper, 
+	10pt, 
+	% unnumberedsections, 
+	twoside, 
+]{LTJournalArticle}
+\usepackage{pgfplots}  
+\usepackage{booktabs}
+\usepackage{dblfloatfix}
+\usepackage{float}
+\pgfplotsset{width=8cm,compat=1.7}  
+\addbibresource{ecg.bib} 
+
+\runninghead{CardioGuardian} 
+
+\footertext{\textit{}} 
+
+\setcounter{page}{1} 
+
+
+\title{CardioGuardian: A Novel Electrocardiogram-Based AI Diagnostic Pathway for Early Detection of Contributory Disorders to Sudden Cardiac Arrest} % Article title, use manual lines breaks (\\) to beautify the layout
+
+% Authors are listed in a comma-separated list with superscript numbers indicating affiliations
+% \thanks{} is used for any text that should be placed in a footnote on the first page, such as the corresponding author's email, journal acceptance dates, a copyright/license notice, keywords, etc
+\author{%
+	Evan Xiang, Thomas Jichen Wang, Vivan Poddar
+}
+
+% Affiliations are output in the \date{} command
+\date{}
+
+% Full-width abstract
+\renewcommand{\maketitlehookd}{%
+	\begin{abstract}
+		\noindent Sudden Cardiac Arrest (SCA) is the leading cause of death among athletes of all age levels in the United States. Current methods of pre-screening for contributory disorders are ineffective, and implementation of the International Olympic Committee’s recommendation for 12-lead Electrocardiography (ECG) screening is prohibitively expensive in the United States. By combining recent advances in artificial intelligence along with ECG-based screening, we propose a preliminary comprehensive screening system (CSS), CardioGuardian, to efficiently and economically screen large populations for contributory disorders to SCA. The CSS hardware was composed of a novel smartwatch-based methodology, recording a sequential 4-lead ECG. The CSS software consists of two components: a cubic spline-based upscaling algorithm that upscales 4-lead ECG signals into 12-lead signals, and a novel deep-learning classification model, TAES (Transformer Auto-Encoder System), that utilizes the transformed 12-lead data to identify cases with contributory disorders. We trained on a clinically verified 12-lead ECG database comprising ECG files from 43,231 individuals to develop and evaluate both algorithms. The classification algorithm achieved macro F1 of 0.95 and micro F1 of 0.97 on the testing dataset using spliced 4 lead ECGs as training data. Human subject trials were conducted with healthy controls using the smartwatch methodology with our algorithm resulting in 0 misidentifications demonstrating baseline viability. We propose an economically viable protocol CSS demonstrates superior accuracy on large-scale population screening, highlighting the need to replace outdated systems. Our future work focuses on clinical implementation and further software development.
+	\end{abstract}
+}
+
+%----------------------------------------------------------------------------------------
+
+\begin{document}
+\maketitle % Output the title section
+%----------------------------------------------------------------------------------------
+%	ARTICLE CONTENTS
+%----------------------------------------------------------------------------------------
+
+\section{Introduction}
+The National Institute of Health (NIH) defines Sudden Cardiac Arrest (SCA) as a moment when the heart stops beating or when it is not beating sufficiently to maintain perfusion \autocite{Yow2022-cc}. Current research estimates that 90\% of SCA lead to Sudden Cardiac Death (SCD), and every year, 0.1\% of Americans lose their lives due to out-of-hospital SCA [1-2]. SCA is also the leading cause of death among youth athletes, an important focus group that has a heightened risk of SCA, taking away up to 1 in 16,000 young athletes yearly and nearly 1 in 5200 at the elite athletic level [1-2]. The current 14-point questionnaire pre-participation evaluation (PPE) implemented by the American Heart Association (AHA) is ineffective with poor sensitivity and specificity of 18.8\% and 68.0\% \cite{Williams2019}, and has never been clinically validated in any controlled study. When identified with an underlying SCA condition, the patient would be referred to further examinations regarding cardiac disease treatment, however, with the 32.0\% false-positive rate (FPR) of the current PPE, the misidentified patients undergo unnecessary follow-up appointments that allocate time, resources, and expenses \cite{Williams2019}. Numerous articles, reports, and organizations have indicated a strong and definitive call for the establishment of mass-screening methods as replacements for the 14-point PPE to reduce the rate of SCA in youth athletes effectively [3-5].
+
+In high school athletes, the cause of Sudden Cardiac Arrest is mainly attributed to hypertrophic cardiomyopathy (HCM) in the United States, arrhythmogenic right ventricular cardiomyopathy (ARVC) in many European countries, as well as coronary artery disease, Long QT Syndrome, myocarditis, Wolff-Parkinson-White syndrome, and dilated cardiomyopathy \cite{Yow2022-cc}\cite{Ha2022}. While these disorders do not always lead to instances of SCA, they significantly increase the chance of SCA occurring, which is further amplified by the innate risk of sports participation \cite{Saul2010}. 
+
+The Electrocardiogram (ECG) is a diagnostic test that records the potential voltage difference generated in the heart on the body’s surface as the heart depolarizes and repolarizes, providing a graphical representation of the heart's electrical activity. The typical 12 lead ECG utilizes 10 electrodes to generate 12 leads allowing us to view the heart from all different views per Figure \ref{fig:ecgoverview}. The ECG can diagnose many disorders ranging from structural deformities to electrical malfunction. The 12-lead ECG is promoted in the Lausanne Recommendations by the International Olympic Committee and the European Society of Cardiology as the gold standard for PPE \cite{Maron2014}. A meta-analysis by \textcite{Harmon2015} in 2015 synthesized the data from 15 articles and found that 12-lead ECG screening exhibited a sensitivity of 94\% and a specificity of 93\%, significantly outperforming the 14-point PPE. 
+
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/ecgoverview.jpeg}
+    \caption{Brief overview of ECG leads. Source: \href{https://link.springer.com/chapter/10.1007/978-3-030-40341-6_2}{[Link]}}
+    \label{fig:ecgoverview}
+\end{figure}
+\subsection{Current Work}
+ECG mass screening is proven to be clinically effective. In regions of Italy and Switzerland, the 12-lead ECG has been used as a part of PPE mass screening for nearly a decade on adolescents and achieved as high as an 89\% reduction in incidences of SCA in the Venado region of Italy \cite{Albiski2022}. Although highly effective, the American College of Cardiology (ACC) does not recommend ECG screening based on two key factors:
+\begin{enumerate}
+    \item High False Positive Rate (FPR) and Low Economic Viability: The 7\% FPR of the 12-lead ECG concluded by \textcite{Harmon2015} surpasses the 4\% threshold of economic viability in the US determined by the National Institute of Health (NIH) \cite{Wheeler2010}. The cost of 12-lead ECG devices is prohibitively high, and estimations made by \textcite{OConnor2010} demonstrated that false-positive ECG screening exams accounted for 98.8\% of follow-up costs, suggesting large-scale 12-lead ECG testing as an overly costly method.
+	\item Physician Infrastructure: According to the AHA and ACC, In the US health care system, during PPE the quality of medical professionals interpreting the ECG results is widely varied, and the availability of qualified physicians is insufficient, preventing the implementation of ECG mass screening \cite{Maron2014}.
+\end{enumerate}
+Recent advancements in Artificial Intelligence (AI) and Smartwatches (SW) in health care significantly bolster the potential of ECG mass screening. Novel studies addressing AI applications on ECG reconstruction and interpretation through machine learning demonstrated methods to reduce the cost of ECG screening and eliminate the need for professional interpretation. The cost of ECG screening can be reduced by using fewer leads than the standard 12-lead while using machine learning to maintain the same cardiac activity output. 
+\subsubsection{Research Addressing Cost-Effectiveness}
+\begin{itemize}
+    \item Reconstruction of 12-lead ECGs from fewer leads: \textcite{Jain2022} in 2022 proposed a method to upscale fewer leads up to 12 leads using a linear matrix interpolation method, iteratively updating lead weights in a matrix over an entire database via gradient descent, to achieve a mean correlation coefficient of 0.8335. \textcite{Sohn2020} in 2020 concluded that a 3-lead ECG can achieve equivalent results with a 12-lead ECG using a long short-term memory (LSTM) network, resulting in a correlation coefficient of 0.95. These studies with high correlation coefficients demonstrated the high feasibility of upscaling fewer-lead ECGs to 12-lead ECGs.
+    \item Using cheaper and fewer lead ECGs as screening methods: Many studies have shown the feasibility of screening with Holter ECGs, Ambulatory ECGs, and commercial products such as KardiaMobile and Smartwatches(SW) [12-14]. \textcite{Touiti2023} and \textcite{Behzadi2020} suggested that the 4-lead SW ECG is optimal for mass-screening, as ECGs with less than 4 leads do not possess viable accuracy for upscaling, while ECGs with more than 4 leads are likely not economically viable. The authors proved the feasibility of placing smartwatches that can produce 1-lead ECGs on different parts of the body to produce 4-lead ECGs. The Apple Watch is recommended for our purposes of economically viable mass-screening because it is the most commercially available in the US and produces high-fidelity ECGs \cite{Pepplinkhuizen2022}.
+\end{itemize}
+
+\subsubsection{Research Addressing Physician Infrastructure}
+\textcite{Smigiel2021} in 2021 proposed a study highlighting the use of several different types of neural networks for signal classification on the PTB-XL database, including the use of Convolutional Neural Networks (CNN) with and without entropy, and SincNet, a network originally developed for voice-based machine learning. The study yielded sensitivity and specificity of around 80\%, demonstrating the possibility of AI interpretation of ECG output. 
+
+In summary, existing research has demonstrated the viability of acquiring 4-lead ECG data via SW and reconstructing 12-lead ECG from a limited number of leads. Additionally, the potential for employing AI in ECG classification has been established. However, there has been no effort to utilize these findings to validate the feasibility of a tool for mass screening, and the accuracy of existing AI models and SW screening could be improved to meet mass screening standards. We intend to address the information gap in literature and current methods by creating a comprehensive solution and establishing its preliminary validity in human subject trials.
+\subsection{Research Objectives}
+Our research aims to develop a comprehensive screening system (CSS), CardioGuardian, to effectively collect, upscale, and classify data. If these goals are met, with nationwide implementation, it is highly plausible that the rate of SCA will be reduced. We plan to accomplish this via the following steps:
+\begin{itemize}
+    \item Development of an affordable, easy-to-use method to collect ECG signals from patients with high replication accuracy in terms of duration, amplitude, and morphology. This device solves the issue of cost-effectiveness and allows simple operation by the patient.
+    \item A 4 to 12-lead upscaling algorithm with high accuracy that is reflected by the accuracy of the trained classification algorithm. Upscaling reduces the cost of the device and simplifies the complicated lead placement process, allowing more accessible mass implementation while maintaining similar accuracy. This algorithm solves issues with physician infrastructure and cost-effectiveness.
+    \item A multi-class classification algorithm that allows us to accurately label ECGs according to predefined sets, identifying whether underlying SCA diseases are present in a patient. Sensitivity and specificity must exceed the 14-point PPE and the 12-lead ECG, reaching an FPR of at most 4\%. The CSS must be economically viable for implementation in the US via Cost-Benefit Analysis. This algorithm solves issues with the FPR of physician-interpreted ECGs. 
+\end{itemize}
+%------------------------------------------------
+\newpage
+\section{Methodology}
+We offer Figure \ref{fig:overview} as a brief overview of our methodology. We develop a method of taking sequential 4-lead ECGs for classification using the Apple Watch S7 specifically extracting leads II, AvR, V2, and V5. This watch serves as the input for our classification algorithm, and the data is preprocessed via a passthrough filter and powerline filter. This data is then rescaled to the range[-1,1] and then resampled to 100 Hz. We implement an upscaling algorithm using cubic spline interpolation to convert data from 4 to 12 leads, and a novel algorithm, TAES (Transformer Auto-Encoder System) building off the architecture introduced by \textcite{Ding2023}. Instead of linear layers, we implement a layer known as stacked Convolutional Auto-Encoders allowing us to extract deeper spatial data to further improve the diagnosis of structural cardiac dysfunction. This is then classified via Support Vector Machines (SVM) organized in the One vs One method to perform multi-class classification with Radial Basis Function (RBF) Kernel. To validate our methodologies, we implemented a human-subject trial with 40 participants, with a sub-cohort of 10 participants being subject to additional physician interpretation and algorithmic interpretation to validate our algorithms' efficacy in diagnostics of healthy controls. 
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/overview.png}
+    \caption{Brief overview of our research methodology}
+    \label{fig:overview}
+\end{figure}
+\subsection{Apple Watch S7 Trace Recording}
+Our device methodology had 2 primary goals
+\begin{enumerate}
+	\item Affordable ECG with appropriate safety features and design
+	\item Duration-amplitude-morphology correlation coefficient of above 0.95 on a stratified set of human subjects
+\end{enumerate}
+Currently, many smartwatches can take a 1 lead ECG utilizing the bottom of the watch as an electrode while using another point on the watch as the other electrode. While most will utilize this functionality as prescribed on their wrist, it is possible to record other ECG leads via differential positioning of the watch. We utilized an Apple Watch S7 (2nd hand market value of \$170 \cite{Turner_2024}) as the watch of choice for our screening system due to its wide commercial availability in the US. 
+
+The S7 can take a one-lead ECG using the digital crown as the negative electrode and the base of the watch as the positive electrode, described in Figure \ref{fig:s7watch}. We may measure our specific leads required in the manner described in Figure \ref{fig:human}. Further clarification is provided below. 
+
+\subsubsection{Lead II:}We measured lead II by placing the Apple Watch on the lower left abdomen just above the hip with the right finger on the digital crown). Typical Lead II is derived from the difference between the Right Arm (RA) electrode and the Left Leg (LL) electrode. In our case we utilize the placement on the lower abdomen to simulate the LL electrode while using the right finger on the digital crown to simulate the RA electrode.
+
+\subsubsection{Lead AvR: }We measured lead AvR by placing the watch on the right arm with the left finger on the digital crown. This allows us to simulate the typical lead AvR which is measured using the difference between the right arm (RA) electrode and the left arm (LA) electrode. 
+
+\subsubsection{Lead V2: }We measured Lead V2 by placing the watch closely at the 4th intercostal space positioned about 2 centimeters to the left of the sternum. A typical procedure was followed, using the index finger of the right arm as the negative electrode. This positioning allows this lead to view the anterior septal wall. This simulated a Wilson-type chest lead. 
+
+\subsubsection{Lead V5: }We measured Lead V5 by placing the watch at the 5th intercostal space along the anterior axillary line. The right finger is placed on the digital crown. This is typically located about 5 inches underneath the armpit and in a horizontal line with the clavicle. This simulated a Wilson-type chest lead. 
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/electrodewatch.png}
+    \caption{Diagram of the electrodes on the Apple Watch S7 Brief: \href{https://www.macstories.net/linked/the-electrodes-used-by-apples-ecg-watch-app-enable-faster-more-accurate-heart-rate-measurements/}{[Link]}}
+    \label{fig:s7watch}
+\end{figure}
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/human.png}
+    \caption{Diagram of the electrodes on the Apple Watch}
+    \label{fig:human}
+\end{figure}
+
+\subsection{Dataset Preprocessing}
+\subsubsection{Dataset Acquisition}
+All data was acquired from publicly available datasets on PhysioNet consisting of 41,350 12-lead ECG of unstandardized length ranging between 5 seconds and over 30 minutes. All data was stratified in terms of age and sex. 
+\subsubsection{Data Filtration}
+We utilized the following steps on both the training data and the watch-derived data. 
+\begin{enumerate}
+    \item Apply a passthrough filter with a passthrough range from 2 Hz to 40 Hz. This is used to eliminate baseline wander, electrode wander, and physiological noise which is extremely critical with our smartwatch screening system. 
+    \item Apply a powerline filter at the 60 Hz level to eliminate noise arising from the electrical grid. 
+    \item Resample all data to the range [-1,1] via the below equation to mitigate the effects of irregular maxima and minima. 
+    \begin{equation}
+        f(x)=2\times \frac{x-min(x)}{max(x)-min(x)}
+    \end{equation}
+    \item Downsample data to 100 Hz via Fast Fourier Transform to reduce computational load. 
+\end{enumerate}
+
+\subsubsection{Segmentation}
+We performed beat-based segmentation of the ECG files, segmenting each file to a single heartbeat just before each R peak. R peaks were identified using the algorithm described by \textcite{Pooyan2016}. This resulted in 1,236,931 files as the primary dataset. Data was then separated into the proportions mentioned. As there were multiple pieces of data per patient, all pieces of the same ECG were segmented into the same data. For example, all beats from one recording would end up in the testing set, and all beats of another may end up in the testing set. All data was then spliced to the 4 leads needed for the upscaling algorithm. 
+\subsubsection{Split}
+We separated all data into the following split: 98\% of the data was utilized for the training data. 1\% was used for the validation loop. 1\% was reserved for the testing set. A relatively large amount of data was provided for training, testing, and validation, thus 1\% of the data represents nearly all possible variance in data. 
+\subsubsection{Classification Training}
+To train the classification algorithm, we utilized our 4 lead ECG data and fed it through the upscaling algorithm to synthesize 12 lead ECG inputs. This accustoms our model to any potential error in the upscaling process and increases the accuracy of the upscaling-classification paired system. 
+\subsection{Upscaling Algorithm}
+\subsubsection{Justification}
+\textcite{Jain2022} suggested the usage of linear interpolation in the development of an algorithm to rapidly upscale ECG signals to the full 12 lead ECG. Certain ECG leads correspond to similar sections of the heart, meaning that using interpolation we could use one lead to represent each major section of the heart. However, linear interpolation has some drawbacks, especially in the reconstruction of physiological signals. Linear interpolation assumes nearly all things move in a straight line and are constant over time, inapplicable to physiological signals. Other methods can be more cost-effective and suited for signal reconstruction of noise-heavy signals. We proposed using cubic-spline interpolation, a more computationally intensive interpolation method that approximates functions using individual piecewise cubic splines. Cubic spline interpolation has the advantage of smoothness and higher accuracy in the reconstruction of signals. These are also the best type of interpolation for sinusoidal signals, of which many bodily signals are composed of, including ECGs.  
+
+\subsubsection{Implementation}
+This section of our CSS was implemented via PyTorch. We chose Leads II, AvR, V2, and V5 for the reasons listed above. We initialize a matrix of weights for the piecewise cubic splines using random numbers, this is then fit closely to the ECG signals by iterating through our training dataset. We essentially act as if each lead is a data point, and we're trying to find a function that best covers each point. The Adam optimizer was used to try to minimize MSE (Mean Square Error). MSE is described in the equation below. 
+\begin{equation}
+    \sum_{i=1}^{D}(x_i-y_i)^2
+\end{equation}
+In this equation, D is the number of data points, $x_i$ is the observed value, $y_i$ is the predicted value. 
+
+As we are iterating through a large dataset, we apply L1 regulation to prevent overfitting on our training dataset and utilize the validation set to check for overfitting consistently. 
+
+\subsection{Classification Algorithm}
+\begin{figure}[!hbtp]
+    \centering
+    \includegraphics[scale = 0.5]{Figures/overallclass.png}
+    \caption{Zoom Out Overview of Classification Algorithm}
+    \label{fig:overallclass}
+\end{figure}
+We utilized a similar system implemented by \textcite{Ding2023} for classification. This study primarily focused on the development of a classification algorithm for arrhythmias. Ding utilized a Transformer encoder block outputting into greedy fully-connected linear layers to reduce data dimensionality for arrhythmia diagnostics via Support Vector Machine. Ding's methodology specifically focuses on temporal relations in data, not including spatial data that indicates inter-lead relations. 
+
+As a higher accuracy alternative, we propose TAES (Transformer Auto-Encoder System), a model that utilizes 6 encoding layers with the outermost layer being a Transformer to extract feature vectors from the ECG signal. 5 internal Convolutional Auto-Encoders (CAE) are utilized to extract spatial relations before reducing the dimensionality of these feature matrices via inter-dispersed max-pooling layers. These stacked CAEs introduce spatial lead relations into the feature data, thus increasing our theoretical accuracy in the detection of hypertrophies, the most common cause of SCA globally, which are often reflected differently over several leads. Hypertrophies involve inflammation of the cardiac tissue in different locations, thus specific locations or leads are important for the classification of these disorders and is a reason why physician interpretation of hypertrophies is unable to detect around 20\% of cases. Our model learns based on these low-dimensional feature representations from the stacked CAEs to classify via a One vs One (OVO) Support Vector Machine, ultimately outputting one of 6 labels, representing half of the primary causes of SCA. 
+
+ All code was written in Python, statistics were computed through R, and all heavy computation was conducted on the University of Pittsburgh Hail 2 Pitt High Throughput Computing Cluster as part of the Center for Research Computing. 
+
+
+\subsubsection{Transformer Architecture}
+All our data was reshaped into 12 lead by 640 sample 2D matrices consisting of several beats strung together. As Transformer architecture requires 1D data, we use the following step to reshape the 2D data into 1D data first.
+\begin{enumerate}
+    \item Reshaping our 12 lead matrices such that they appeared as 12 parallel channels with around 640 samples each. 
+    \item Apply a 1D Convolutional Layer to each lead. We expand each point to have a 64-dimensional feature vector, essentially noting around 64 pertinent details about each point on each lead, resulting in a 3D feature output with dimensions [12, 640, 64].
+    \item We flatten the output of the 1D Convolutional Layer to achieve a 1D vector. Each original sample point is now transformed into a 768-dimensional vector(12*64), thus converting our 2D representation into a 1D 640 vector long sequence with 768 features or [640,768]. Each point on the vector has 64 individual features inside of it, like details in a photo in an album laid in order.
+    \item We add positional encoding to retain temporal information and sequence order, essentially adding timing/dating to our signals, as Transformers cannot naturally remember the sequence, so we need markers to 
+\end{enumerate}
+Using this methodology we can take a complex 2D matrix and convert it into an extremely detailed "story" which the Transformer can use to extract further complex features. We then feed this complex 1D matrix through the layers of the Transformer encoder block (Figure \ref{fig:encoderblock}). \\
+\begin{figure} [!h]
+    \centering
+    \includegraphics[scale=0.16]{Figures/encoderblock.png}
+    \caption{Encoder Block of a Transformer Model}
+    \label{fig:encoderblock}
+\end{figure}
+
+For the Transformer portion of the classification model, we solely use the encoding block. This block essentially uses an attention mechanism with stabilizing and filtering layers to create a feature matrix as input to the next step of our algorithm. The attention mechanism extracts complex relationships between different parts of the signal by iterating through each signal and finding how each point relates to every other point. This allows us to find which points are more important for our task of classifying disorders that might contribute to Sudden Cardiac Arrest. The remaining layers stabilize and clarify the output of the attention mechanism. These layers and the attention mechanism are then iterated several times to retrieve our final output. The final output is a feature matrix that contains pertinent details about the signal, crucial to classification. This high-dimensional representation of the ECG is then fed into stacked convolutional auto-encoders to reduce the dimensionality of the data, cutting out repetitive portions of the matrix, to reduce computational load.
+\\\\
+\subsubsection{Stacked Convolutional Auto-Encoder: } We implemented 5 stacked convolutional auto-encoders to reduce the dimensionality of our data and thus computational load. We reverse the steps for the input of data into the transformer to utilize a 2D matrix as input into the first Auto-Encoder. We implement Conv2D layers as the basis of our model and intersperse max-pooling layers with value 2 at the middle of each auto-encoder. This is described in Figure \ref{fig:convoauto}. 
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/convolutionalauto.jpeg}
+    \caption{Description of Convoluted Auto-Encoder. Source: \href{https://www.frontiersin.org/articles/10.3389/frai.2022.640926/full}{[Link]}}
+    \label{fig:convoauto}
+\end{figure}
+\\
+Each ECG is treated as a 12 lead by 64 feature matrix, where each ECG lead is associated with 64 features chosen by the Transformer network. We train this network by iterating through all ECG attention matrices and tuning hyperparameters to minimize MSE (Mean Square Error). MSE is calculated using:
+\begin{equation}
+    \sum_{i=1}^{D}(x_i-y_i)^2
+\end{equation}
+In this equation D is the number of data points, $x_i$ is the observed value, $y_i$ is the predicted value. 
+\\
+Interdispersed Max Pooling Layers decrease the dimensionality of data(\ref{fig:convoauto}). The mathematics behind this is shown below. 
+\begin{equation}
+    C_{ij} = \sum_{m=0}^{k-1} \sum_{n=0}^{k-1} E_{(i+m)(j+n)} \times F_{mn}
+\end{equation}
+\begin{itemize}
+    \item $C_{ij}$ = The value at position $(i,j)$ in our output feature map after each convolution
+    \item $m,n$ = Indices we use to traverse the filter
+    \item $E_{(i+m)(j+n)}$ = Value of the ECG matrix at the position that corresponds to current position $(i,j)$ in output, offset by m and n to cover the area under the filter. 
+    \item $F_{mn}$ = Value of the position $(m,n)$ in filter $F$
+\end{itemize}
+Essentially the max-pooling layers choose the brightest and most pertinent parts of the data while eliminating dull/unnecessary parts. 
+
+A brief explanation of the convolution operation is necessary to understand this algorithm:
+Imagine first that there's a k by k square filter that you lay over the ECG matrix starting from the top left, the filter detects specific features in the ECG like sharp spikes that correspond to particular waveforms, etc. (Figure \ref{fig:cnn})
+\begin{enumerate}
+    \item At each position where the filter is placed on the ECG matrix, we calculate the dot product by multiplying each element of the filter with the corresponding element of the ECG data it covers, then summing up all these products. This sum is the value $C_{ij}$ at $(i,j)$. 
+    \item We move the filter across the ECG matrix, one step at a time. The size of the step is determined by the stride. Our stride is 1, thus the filter moves one element over for each operation. This sliding continues across the entire ECG matrix, computing a dot product at each position until the entire output feature map is filled with values.
+    \item The output, C, is a new matrix where each element represents the response of the filter at a different location in the ECG matrix. High values in C indicate strong matches between the filter pattern and the local patterns in the ECG data, suggesting the presence of the feature the filter is designed to detect.
+    \item The resultant feature map is passed through a non-linear RELU layer (Rectified Linear Unit) to introduce non-linearity and learn more complex features. 
+\end{enumerate}
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/cnnillustration.png}
+    \caption{Illustration of Convolutional Neural Network. Source: \href{https://towardsdatascience.com/convolutional-neural-network-cnn-architecture-explained-in-plain-english-using-simple-diagrams-e5de17eacc8f}{[Link]}}
+    \label{fig:cnn}
+\end{figure}
+Hierarchical feature extraction is present with these Convolutional Auto-Encoders, where early layers extract simple morphology while deeper layers extract high-level patterns by combining these layers. 
+
+Each Convolutional Auto-Encoders (CAE) output is passed into another CAE to continuously reduce dimensionality by 1/2 with each max-pooling layer, resulting in a final low-dimensional high-accuracy representation of the data. 
+
+\subsubsection{SVM Classifier}
+We implement an SVM classifier to label for 6 primary signals each represented with a one-letter label. SVM was chosen due to its resistance to dataset overfitting in comparison to other classification methods and its simplicity in implementation. We're essentially classifying the low-dimensional feature matrices. The following classes were used: 
+\begin{itemize}
+    \item Hypertrophic Cardiomyopathy (H)
+    \item Arrhythmogenic Left Ventricular Cardiomyopathy (A)
+    \item Normal Sinus Rhythm (N)
+    \item Myocarditis (M)
+    \item Long QT Syndrome (L)
+    \item Dilated Cardiomyopathy (D)
+\end{itemize}
+While SVMs are typically utilized for binary classification tasks, we utilize our SVM for multi-class classification via the OVO method (One vs One). Each model is trained to distinguish between two different classes. The output prediction is the class that gets the most votes from all SVM classifiers is the final prediction. 
+The number of classifiers needed for this method of classification is represented below where N is the number of classes. 
+\begin{equation}
+    Classifiers =\frac{N(N-1)}{2}
+\end{equation}
+In our case we have 6 classification classes, resulting in 15 classifiers needed for our task. Each SVM classifier functions by solving an optimization problem. We're essentially trying to find the hyperplane that splits two classes with the largest margin between the points and the line. 
+
+We used the Radial Basis Function (RBF) Kernel also known as the Gaussian Kernel for our SVMs. It is commonly used for non-linear data and is optimal for cases where features are non-linearly associated with labels.  Data that was not linearly separable in the 2D space may become separable with higher feature dimensionality as we have higher degrees of freedom. 
+
+All ECGs are recorded as a set of features, in essence we represent each ECG as a single dimension forming a multidimensional space. We "simulate" working in a higher dimensional computational space via the Kernel Trick to compute similarity in higher dimensional space without explicitly converting to higher dimensional space. Upon expansion/increase of dimensionality, there may be an area in which a hyperplane may be applied. 
+
+\subsubsection{Algorithmic Evaluation}
+We calculated all statistics for this algorithm using the physician-interpreted ECG as the ground truth. We calculated precision, recall, and F1 score were calculated using the equations described below. Precision and Recall were preferred over sensitivity and specificity due to the nature of precision. Precision specifically calculates the positive predictive value and specifically helps identify false positives. In our use case, the identification of false positives is a critical issue as it is the limiting factor behind why ECG mass screening is not implemented in the United States. Macro F1 and Micro F1 scores were calculated to generalize the accuracy of the entire algorithm. Macro is calculated by averaging the F1 scores of all classification tasks, Micro F1 score is calculated by evaluating the F1 score over the entire pooled classification task (total TP, FP, FN). 
+\begin{equation}
+    Precision = \frac{TP}{TP+FP}
+\end{equation}
+\begin{equation}
+    Recall = \frac{TP}{TP+FN}
+\end{equation}
+\begin{equation}
+    F1 = \frac{TP}{TP+\frac{1}{2}(FP+FN)}
+\end{equation}
+\subsection{Subject Trial Design}
+We conducted a prospective study with 30 participants (Age < 18) to address our fundamental research question and goals using both our device and algorithms on human subjects.
+\\
+Our population cohort consisted of 30 individuals aged 15-18 years, recruited between January and February 2024 from Shady Side Academy Senior School in Pittsburgh, Pennsylvania. These participants did not exclusively live in the Pittsburgh area, with several hailing from other US states and countries (n = 8), as the school receives students from around the US and the world. We received ethical approval from the Shady Side Academy Institutional Review Board (IRB) and the Pittsburgh Regional Science and Engineering Fair IRB. All participants consented with parental approval via the approved human subject consent form submitted to PRSEF. 
+
+\subsubsection{Inclusion Criteria}
+We offered the following criteria for inclusion in our study:
+\begin{enumerate}
+    \item Age less than 18 but greater than 13 per our IRB approval. 
+    \item Participant must have sufficient cognitive ability to comply with smartwatch protocol. 
+    \item Participant must have the ability to be administered a 12-lead ECG. 
+\end{enumerate}
+
+\subsubsection{Exclusion Criteria}
+The following criteria were presented for exclusion from our study:
+\begin{enumerate}
+    \item Pre-existing cardiovascular abnormality of any type. 
+    \item Family history of sudden death with no definitive cause before the age of 30. 
+    \item Previous ECG screening with indication of disorder. 
+    \item Tremors, Situs Invertus, or any other condition causing potential incorrect lead placement or inability to take accurate trace.  
+\end{enumerate}
+
+\subsubsection{Standard Device Used}
+We utilized the GE MAC1200 Electrocardiogram machine as our standard 12-lead ECG. Paper is fed at a rate of 25 mm/s at 1,000 samples/second sampling rate. All ECG signals were recorded by a medical professional in the typical supine position for a 2-minute long recording. 
+\subsubsection{Apple Watch S7}
+This recording was performed via an Apple Watch Series 7 which records a 1 lead ECG at 25 mm/s, 250 samples per second and 10mm/mv. All leads were taken via the methodology described in the trace recording section in the supine position. The 4 lead ECG was recorded immediately following the 12 lead ECG. Each lead was recorded sequentially for 30 seconds, ultimately combining into a 2-minute ECG recording. The positive electrode is represented by the bottom of the watch with the digital crown as the negative electrode. Each cohort participant was provided the same instruction sheet for performing the ECG with a licensed medical professional helping them should they require assistance. 
+\\ \\
+All ECGs were exported from the Apple Health app via the PDF export function and converted into signals via the methodology and software prescribed by \textcite{fortune_2022_digitizing}.
+ \\
+\subsubsection{Measured Criteria}
+\begin{figure} [!h]
+	\includegraphics[width = \linewidth]{Figures/ecgbeat.png}
+	\caption{Description of the typical ECG beat with associated relevant intervals. Source: Zheng et al., \href{https://www.nature.com/articles/s41597-020-0386-x}{https://www.nature.com/articles/s41597-020-0386-x}}
+	\label{fig:zheng}
+\end{figure}
+Referring to Figure \ref{fig:zheng}, we can see the typical features used by physicians and many computerized systems to diagnose disorders. This involves the QRS complex, QTc interval, ST segment, PR segment, PR interval, and much more. 
+In this study we analyzed the following 6 parameters in several different ways to assess accuracy:
+\begin{enumerate}
+    \item QRS Complex: Amplitude(mV), Duration(ms), and Morphology(+/-)
+    \item P Wave: Amplitude(mV), Duration(ms), and Morphology(+/-)
+    \item PR Interval: Duration(ms)
+    \item T Wave: Amplitude(mV) and Morphology(+/-)
+    \item QTc (QT Corrected) Interval: Duration(ms) via Bazett's Formula
+    \item ST Morphology: Isoelectric, Elevated, or Depressed 
+\end{enumerate}
+\subsubsection{Data Analysis}
+We conducted statistical analysis with IBM SPSS Statistics v28. Quantitative data was compared in the format mean $\pm$ standard deviation. Observational data was presented textually. In all tests, a p-value < 0.05 was statistically significant. All other data was compared directly, allowing us to calculate the correlation coefficient. We assumed all data with a correlation coefficient greater than 70\% to be significantly correlated between both ECGs.  Bland Altman analyses were used to quantify and graphically display agreement between each ECG for each of the described criteria.   
+
+\subsubsection{Data Evaluation and Viability Testing}
+A random subgroup(n=10) of patients was screened by a licensed physician and then processed through our algorithms to label via TAES. We compared the physician label and algorithmic label to determine agreement. We recognize that this method is only capable of identifying the rate of false positives in a known healthy environment. However, we believe this short test may be used as a test of viability, as we can test if the interpretability of the normal label input ECG files was impacted by the Apple Watch collection method. 
+
+%------------------------------------------------
+\section{Results}
+\subsection{Algorithm Testing}
+A confusion matrix was generated for our classification model on the upscaled testing set, shown in Figure \ref{fig:confuse}. We did not calculate the True Negative rate for our algorithm as we are completing multi-class classification. Our overall evaluated model statistics are available in Table \ref{tab:classmodel}. We present macro and micro averages in Table \ref{tab:macmic}. We show a Macro F1 score of 0.95 and a Micro F1 score of 0.97, showing TAES as a high-accuracy classification system. We also demonstrate high accuracy in the classification of hypertrophic cardiomyopathy(HCM). Our deep layers effectively allow us to extract features that are typically not seen on HCM ECGs, reducing the 15 to 20\% of cases in which HCM cannot be directly observed. Results here demonstrate that beat-based feature extraction classification has State-Of-The-Art (SOTA) accuracy versus physician interpretation and contemporary models.  
+\subsection{Human Subject Trials}
+Table \ref{tab:pop} shows the population demographics of our testing cohort. All participants were between the ages of 14 and 18 and were equally stratified across the 9th through 12th grades. We report duration, amplitude, and morphology statistics in Table \ref{tab:ecg_comparison} and \ref{tab:ecg_comparison2} along with Chi-Square analysis to determine the significance of variation. There was no significant difference between the commercial 12-lead ECG and the sequential Apple Watch S7 method (p < 0.05) in terms of feature replication. Bland Altman Analysis was used in Figures \ref{fig:prpblandalt}, \ref{fig:qrsqttblandalt}, \ref{fig:amplitude} to further clarify differences/agreement in the two methods of measurement and showed little to no statistically significant difference. Morphology results are further reported here, as only three signals included a measurement. We found that the +/- morphology of the T Wave and P Wave differed in none of the screened individuals between the standard ECG and the Apple Watch ECG. We also found that the morphology of the ST segment was consistent between standard and Apple Watch, this was not reported in the charts but was observed in ECG interpretation. 
+\begin{figure*} [!h]
+    \centering
+    \includegraphics[scale = 0.75]{Figures/confusionmatrix.png}
+    \caption{Confusion Matrix for Labeling. H = hypertrophic cardiomyopathy, A = arrhythmogenic left ventricular hypertrophy, N = normal sinus rhythm, M = myocarditis, L = long QT syndrome, D = dilated cardiomyopathy}
+    \label{fig:confuse}
+\end{figure*}
+
+\newpage
+\newpage
+\subsection{Validity Testing}
+Table \ref{tab:valid} displays the results of our validation sub-cohort. We demonstrate that 100\% of healthy controls were identified as healthy controls. No individuals in the validation sub-cohort were identified as having a contributory disorder. In the future we plan to utilize true positives to validate our algorithm, however time limitations prevented us from executing this. This validation method's reliance solely on healthy controls is insufficient. The absence of true positives in the validation process limits our ability to fully assess the algorithm's performance in identifying individuals with contributory disorders. However, we believe that the usage of this algorithm solely on healthy controls, shows some level of baseline viability, as the watch and algorithms can be paired into a comprehensive system and correctly identify true negative patients as true negatives. 
+\begin{table} [!h]
+	\caption{Validity Testing}
+	\centering
+        \small
+	\begin{tabular}{L{0.2\linewidth} L{0.2\linewidth} L{0.2\linewidth}}
+		\toprule
+		Participant & Algorithm Label & Physician Label \\
+		\midrule
+		1 & N & N \\
+		2 & N & N \\
+		3 & N & N \\
+            4 & N & N \\
+            5 & N & N \\
+            6 & N & N \\
+            7 & N & N \\
+            8 & N & N \\
+            9 & N & N \\
+            10 & N & N \\
+		\bottomrule
+	\end{tabular}
+	\label{tab:valid}
+\end{table}
+
+\begin{table*}[ht]
+	\caption{Classification Model Statistics per Disorder}
+        \label{tab:classmodel}
+	\centering % Horizontally center the table
+        \small
+	\begin{tabular}{@{}ccccc@{}}
+		\toprule
+		\cmidrule(r){2-4}
+		Disorder & Precision & Recall & F1 Score  \\
+		\midrule
+		Hypertrophic Cardiomyopathy (H) & 97.2\% & 95.6\% & 0.96 \\
+		Arrhythmogenic Left Ventricular Hypertrophy (A) & 92.9\% & 95.41\% & 0.94 \\
+		Normal Sinus Rhythm (N) & 98.2\% & 96.1\% & 0.97 \\
+            Myocarditis (M) & 91.3\% & 94.7\% & 0.93\\
+            Long QT Syndrome (L) & 97.8\% & 96.1\% & 0.97\\
+            Dilated Cardiomyopathy (D) & 94.7\% & 93.4\% & 0.94\\
+		\bottomrule
+	\end{tabular}
+\end{table*}
+\begin{table*}[!h]
+	\caption{Macro and Micro Averages on Classification Algorithm}
+        \label{tab:macmic}
+	\centering 
+        \small
+	\begin{tabular}{L{0.5\linewidth} L{0.1\linewidth} L{0.1\linewidth}} 
+		\toprule
+		Model & Macro F1 & Micro F1 \\
+		\midrule
+		Transformer Auto-Encoder System (TAES) & 0.95 & 0.97\\
+		\bottomrule
+	\end{tabular}
+\end{table*}
+
+\begin{table*} [!h]
+	\caption{Population Statistics}
+        \label{tab:pop}
+	\centering 
+	\begin{tabular}{L{0.3\linewidth} L{0.3\linewidth}} 
+		\toprule
+		  Variables & Quantity \\
+		\midrule
+		Age & 16.2 $\pm$ 1 years old\\
+            Sex (Male/Female) & 15/15 \\
+            Systolic Blood Pressure & 121 $\pm$ 13 mmHg \\
+            Diastolic Blood Pressure & 73 $\pm$ 11 mmHg \\
+            Average Beats Per Minute & 74 $\pm$ 6 \\
+		\bottomrule
+	\end{tabular}
+\end{table*}
+\begin{table}[!h]
+  \centering
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Criterion} & \textbf{Lead} & \textbf{Standard ECG} & \textbf{Smartwatch ECG} & \textbf{Correlation Coefficient} & \textbf{p-Value} \\
+    \midrule
+    P Wave   & II  & 77.34 $\pm$ 11.75 & 76.58 $\pm$ 11.67 & 0.94 & 0.001 \\
+             & AvR & 77.29 $\pm$ 13.12 & 77.88 $\pm$ 13.21 & 0.94 & 0.001 \\
+             & V2  & 77.47 $\pm$ 14.63 & 78.69 $\pm$ 13.95 & 0.96 & 0.001 \\
+             & V5  & 77.52 $\pm$ 14.70 & 78.72 $\pm$ 13.90 & 0.95 & 0.001 \\
+    \midrule
+    PR Interval & II  & 172.35 $\pm$ 24.60 & 171.42 $\pm$ 24.68 & 0.98 & 0.001 \\
+                & AvR & 173.78 $\pm$ 30.01 & 172.75 $\pm$ 29.20 & 0.97 & 0.001 \\
+                & V2  & 172.15 $\pm$ 28.30 & 172.69 $\pm$ 26.55 & 0.98 & 0.001 \\
+                & V5  & 172.20 $\pm$ 28.25 & 172.65 $\pm$ 26.50 & 0.97 & 0.001 \\
+    \midrule
+    QRS Complex & II  & 87.48 $\pm$ 11.74  & 87.68 $\pm$ 11.20  & 0.94 & 0.001 \\
+                & AvR & 88.83 $\pm$ 10.76  & 89.04 $\pm$ 10.49  & 0.93 & 0.001 \\
+                & V2  & 87.15 $\pm$ 14.55  & 87.28 $\pm$ 14.01  & 0.95 & 0.001 \\
+                & V5  & 87.18 $\pm$ 14.52  & 87.25 $\pm$ 13.98  & 0.94 & 0.001 \\
+    \midrule
+    QT Interval & II  & 369.67 $\pm$ 44.25 & 369.92 $\pm$ 44.30 & 0.99 & 0.001 \\
+                & AvR & 368.48 $\pm$ 42.23 & 367.47 $\pm$ 40.65 & 0.98 & 0.001 \\
+                & V2  & 369.57 $\pm$ 42.35 & 369.20 $\pm$ 42.17 & 0.99 & 0.001 \\
+                & V5  & 369.60 $\pm$ 42.40 & 369.23 $\pm$ 42.15 & 0.98 & 0.001 \\
+    \midrule
+    T Wave & II  & 132.44 $\pm$ 24.77 & 133.14 $\pm$ 24.83 & 0.97 & 0.001 \\
+            & AvR & 132.81 $\pm$ 24.46 & 133.17 $\pm$ 23.95 & 0.97 & 0.001 \\
+            & V2  & 133.79 $\pm$ 24.18 & 133.84 $\pm$ 23.19 & 0.98 & 0.001 \\
+            & V5  & 133.74 $\pm$ 24.14 & 133.80 $\pm$ 23.16 & 0.96 & 0.001 \\
+    \bottomrule
+  \end{tabular}
+  }
+  \caption{Comparison of ECG duration in ms from Standard and Smartwatch devices.}
+  \label{tab:ecg_comparison}
+\end{table}
+\clearpage
+
+\begin{table}[!h]
+  \centering
+  \resizebox{\textwidth}{!}{
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Criterion} & \textbf{Lead} & \textbf{Standard ECG} & \textbf{Smartwatch ECG} & \textbf{Correlation} & \textbf{p-Value} \\
+    \midrule
+    P Wave   & II  & 0.22 ± 0.07 & 0.23 ± 0.06 & 0.78 & 0.001 \\
+             & AvR & 0.23 ± 0.10 & 0.24 ± 0.09 & 0.86 & 0.001 \\
+             & V2  & 0.21 ± 0.08 & 0.22 ± 0.07 & 0.83 & 0.001 \\
+             & V5  & 0.20 ± 0.09 & 0.21 ± 0.08 & 0.88 & 0.001 \\
+    \midrule
+    QRS Complex & II  & 1.88 ± 0.69 & 1.90 ± 0.67 & 0.93 & 0.001 \\
+                & AvR & 1.92 ± 0.75 & 1.94 ± 0.73 & 0.91 & 0.001 \\
+                & V2  & 1.85 ± 0.68 & 1.87 ± 0.70 & 0.95 & 0.001 \\
+                & V5  & 1.90 ± 0.65 & 1.92 ± 0.66 & 0.89 & 0.001 \\
+    \midrule
+    T Wave & II  & 0.30 ± 0.14 & 0.31 ± 0.15 & 0.89 & 0.001 \\
+            & AvR & 0.29 ± 0.16 & 0.30 ± 0.17 & 0.85 & 0.001 \\
+            & V2  & 0.28 ± 0.15 & 0.29 ± 0.16 & 0.90 & 0.001 \\
+            & V5  & 0.27 ± 0.17 & 0.28 ± 0.18 & 0.87 & 0.001 \\
+    \bottomrule
+  \end{tabular}
+  }
+  \caption{Comparison of ECG amplitude in mV from Standard and Smartwatch devices across different leads.}
+  \label{tab:ecg_comparison2}
+\end{table}
+\begin{figure*} [!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/pprblandalt.png}
+    \caption{The Bland–Altman plots show the agreement between the measured values from the Apple Watch versus the Commercial ECG in terms of PR/P Duration(ms). The horizontal dotted red line shows the mean of the differences (=bias) between the two methods. The green horizontal dotted lines show the upper and lower 95\% limits of agreement (=bias ± 1.96 × SD).}
+    \label{fig:prpblandalt}
+\end{figure*}
+
+\begin{figure*} [!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/qrsqttblandalt.png}
+    \caption{The Bland–Altman plots show the agreement between the measured values from the Apple Watch versus the Commercial ECG in terms of QRS/QT/T Duration(ms). The horizontal dotted red line shows the mean of the differences (=bias) between the two methods. The green horizontal dotted lines show the upper and lower 95\% limits of agreement (=bias ± 1.96 × SD).}
+    \label{fig:qrsqttblandalt}
+\end{figure*}
+\begin{figure*} [!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/amplitudeplot.png}
+    \caption{The Bland–Altman plots show the agreement between the measured values from the Apple Watch versus the Commercial ECG in terms of Amplitude(mV). The horizontal dotted red line shows the mean of the differences (=bias) between the two methods. The green horizontal dotted lines show the upper and lower 95\% limits of agreement (=bias ± 1.96 × SD).}
+    \label{fig:amplitude}
+\end{figure*}
+
+\clearpage
+
+
+\section{Discussion}
+
+The results of this study supported the feasibility of CardioGuardian as a comprehensive screening system (CSS) for mass screening contributory disorders to Sudden Cardiac Arrest (SCA). Our findings demonstrated superior device and algorithmic accuracy compared to literature and current solutions, potentially decreasing ECG screening's economic restraints and reliance on physician infrastructure. 
+
+\begin{table} [!h]
+	\caption{CardioGuardian Compared to Commercial Solutions \newline *: \textcite{Turner_2024} **: USA Medical \cite{USA} ***: Defined by NIH as <4\% FPR \cite{Wheeler2010}
+	\label{tab:CG_comp1}}
+	\centering
+	\begin{tabular}{L{0.23\linewidth} L{0.18\linewidth} L{0.18\linewidth} L{0.18\linewidth}}
+		\toprule
+		Criterion & Cardio Guardian & 14-point PPE & 12-lead ECG \\
+		\midrule
+		Sensitivity & 97\% & 18.8\% & 94\% \\
+        Specificity & 98\% & 68.0\% & 93\% \\
+        FPR & 2\% & 32.0\% & 7\% \\
+        Price & \$170* & N/A & >\$1,000** \\
+        Economically Viable*** & Yes & No & No \\
+        Physician Interpretation & No & Yes & Yes \\
+
+		\bottomrule
+	\end{tabular}
+
+\end{table}
+
+\subsection{Screening Methodology Analysis}
+
+Our Apple Watch screening method showed minimal difference in accuracy compared to the gold standard commercial 12-lead ECG. The high correlations of our method significantly surpassed \textcite{Touiti2023} and \textcite{Behzadi2020}. Bland Altman Analysis of both amplitude and duration showed high agreement between both screening methodologies. We found for QRS, QT, T, and PR duration that the bias line was within 0.3 of 0 bias, indicating high agreement in these segments of the ECG. P Wave bias was also generally low, with a mild outlier in Lead II. We observed that the distribution is generally random with no observable trend indicating that the difference in the two methods did not change with the duration(ms) of the observed segment. Nearly all points were within the limits of agreement (bias $\pm$ 1.96 $\times$ SD) showing high agreement between both methods. A high spectrum of points was present, consistent with physiological signals being recorded. We noticed similar trends with our amplitude plots, showing most values within the limits of agreement. Our validity testing demonstrated the baseline viability of our CSS, correctly identifying all healthy controls. While being at only \$170 \cite{Turner_2024} compared to a medical grade 12-lead ECG which is over \$1,000 \cite{USA}, with simple operation and high clinical accuracy we propose the Apple Watch screening method to be viable for mass implementation. Further testing with additional stratification of the testing group may be required as a proof of concept for nationwide implementation, however current testing indicated that the watch generally agrees with the 12 lead gold standard on critical metrics. 
+
+
+\begin{table*}
+  \caption{Comparison of CardioGuardian Comprehensive Algorithm Accuracy vs. Existing Studies \newline *: For Jain et al., Sohn et al., and Touiti et al., the data from fewer lead ECGs were not classified. To compare their theoretical sensitivity, the sensitivity rate of the 12-lead ECG, 94\% \cite{Harmon2015}, was applied to their correlation coefficient.}
+  \centering
+  \resizebox{\textwidth}{!}
+  {
+  \begin{tabular}{lccccc}
+    \toprule
+    \textbf{Criterion} & \textbf{CardioGuardian} & \textbf{Jain et al.} & \textbf{Sohn et al.} & \textbf{Touiti et al.} & \textbf{Smigiel et al.}\\ 
+    \midrule
+    Type of Device & Apple Watch  & N/A & N/A & Withings Scanwatch & N/A\\
+    \midrule
+    Amount of Leads & 4-lead  & 1-9 leads & 3 leads &  4 leads & N/A\\
+    \midrule
+    AI Technology Used & Deep Learning via TAES  & Multi-output & LSTM &  N/A & Deep Learning \\
+                       & Cubic Spline Interpolation  & Deep Learning &  & & CNN with entropy features \\
+    \midrule
+    Correlation Coefficient  & 0.97  & 0.83 & 0.95 & 0.70 & N/A\\
+    \midrule
+    Comprehensive Sensitivity*  & 97\%  & 78\% & 89.3\% & 65.8\% & 78.5\%\\
+
+    \bottomrule
+  \end{tabular}
+  }
+  \label{tab:CG_comp}
+  
+\end{table*}
+\subsection{Combined Algorithm Analysis}
+
+The 4 to 12-lead upscaling algorithm and the multi-class classification algorithm achieved State-Of-The-Art (SOTA) combined accuracy. To the best of our knowledge, we were the first to utilize cubic spline interpolation as a method of upscaling fewer lead ECGs, and the first to implement convolutional auto-encoders for spatial extraction, in addendum to Transformer to improve ECG signal classification accuracy. The high F1 scores with minimal error reflected our novel interpolation and beat-based feature extraction methods as highly feasible. The exceptionally precise classification of hypertrophic cardiomyopathy (HCM) demonstrated the effectiveness of our deep spatial layers, observing more HCM cases than a typical ECG. 
+
+Table \ref{tab:CG_comp} represents a statistical overview of the advantages of our model over several existing models, demonstrating the superior accuracy of CardioGuardian. Since we trained the classification algorithm on data upscaled by the upscaling algorithm, the accuracy of the classification algorithm reflects the combined accuracy of both algorithms. To better compare our results with existing studies, the sensitivity of the 12-lead ECG (94\% [6]) was applied to the correlation coefficient of Jain et al., Sohn et al., and Touiti et al to obtain their theoretical comprehensive sensitivity. Current research utilizes methods such as multi-output deep learning, long short-term memory (LSTM), and convolutional neural networks (CNN) with entropy features. Our improvement in accuracy over existing studies was mainly attributed to our implementation of novel AI technologies --- cubic spline interpolation and convolutional auto-encoders --- to upscale and classify ECG data. 
+
+The sensitivity and specificity of CardioGuardian significantly exceeded the 14-point PPE and surpassed the 12-lead ECG per Table \ref{tab:CG_comp1}. CardioGuardian correctly identified 80\% more individuals with underlying SCA conditions than the current pre-participation evaluation (PPE) questionnaire, suggesting substantial improvement over the current method of screening. CardioGuardian's FPR remained lower than both the PPE and the 12-lead ECG, as well as the critical FPR threshold of economic viability, significantly reducing the follow-up cost consequential to the 32\% of falsely identified individuals by the current PPE. These findings further supported AI interpretation as a viable method to eliminate the requirement for medical professionals in the CSS and allowed user-friendliness for simple, automated ECG screening. 
+
+
+\subsection{Cost-Effectiveness Analysis}
+\textcite{Wheeler2010} performed a Cost-Effective Analysis on the addition of 12-lead ECGs in pre-participation screening (PPE) for young athletes, determining the incremental total cost of the ECG to be \$89 per athlete. It is difficult to conduct the same analysis to obtain the per-athlete cost of CardioGuardian, as we do not have access to the statistics and model used by the NIH study \cite{Wheeler2010}. However, the economic viability of CardioGuardian could still be supported by analyzing its FPR. The 2\% FPR of CardioGuardian demonstrated high economic viability by NIH standards \cite{Wheeler2010} for large population screening, surpassing the 4\% FPR critical threshold of economic viability. Furthermore, the hardware cost of CardioGuardian is significantly lower than the 12-lead ECG as shown in Table \ref{tab:CG_comp1}. The additional costs of physicians, medical professionals, etc. necessary for proper 12-lead ECG screening are not present in the screening of our CSS. Surpassing the FPR threshold for 12-lead ECG costs and having a significantly lower comprehensive price than the 12-lead ECG, these findings of our study suggest that CardioGuardian is likely to be economically viable for mass screening. 
+
+
+
+
+\subsection{Limitations}
+In this study, the algorithms used for upscaling and classification were trained on datasets that only consisted of the most common five contributory disorders to Sudden Cardiac Arrest (SCA). CardioGuardian is not able to detect all contributory disorders to SCA, such as uncommon disorders. In addition, our subject trial only consisted of 30 students from Shady Side Academy who do not have underlying conditions that cause SCA. This population cohort is small and not representative of all youth athletes in the US. Although CardioGuardian correctly identified every participant as normal (N), further testing on a larger, more diverse population with contributory disorders is necessary to prove CardioGuardian's clinical accuracy in the detection of diseased labels (H, A, M, L, D). 
+
+
+\section{Conclusion}
+    This research proposes CardioGuardian, a preliminary comprehensive screening system (CSS) for the early detection of contributory disorder to SCA. We developed TAES, a novel Transformer-based architecture that achieves SOTA performance on the classification of ECG signals, providing a solution for mass cardiac monitoring in the United States. Furthermore, we developed a cost-effective methodology to extract 4 lead ECG using a smartwatch (Apple Watch S7) as a method of data collection. CardioGuardian demonstrates encouraging performance in a viability sub-cohort, correctly labeling all healthy participants as healthy. Our results show baseline economic viability and supersede the current 14-point PPE as well as gold-standard physician-interpreted 12-lead ECG screening. Future work aims to explore clinical implementation and validation of our CSS in the detection of the other 5 labels(H, A, M, L, D) not represented in our validation cohort. Once SOTA accuracy and clinical validation of these metrics have been achieved via rapid algorithmic refinement, we plan to implement a smartwatch-based app to rapidly record and classify ECGs via cloud computing. Results would be uploaded to a school-wide database, allowing administrators to inform parents of any potential disorders. Figure \ref{fig:future} gives a general overview of this process. 
+\begin{figure}[!h]
+    \centering
+    \includegraphics[width = \linewidth]{Figures/future.png}
+    \caption{Brief overview of future plans}
+    \label{fig:future}
+\end{figure}
+
+\newpage
+\section{Conflict of Interest}
+The authors declare that there is no conflict of interest
+that could be perceived as prejudicing the impartiality of
+the research reported.
+\section{Acknowledgments and Contributions}
+\textbf{Dr. Wade Znosko, Shady Side Academy }
+\begin{itemize}
+    \item Faculty Sponsor at Shady Side Academy. 
+\end{itemize}
+\textbf{Dr. Ali Behrangzade, University of Pittsburgh}
+\begin{itemize}
+    \item Assisted in paper review and editing. 
+\end{itemize}
+\textbf{Dr. Devon Renock, Shady Side Academy / Dartmouth College}
+\begin{itemize}
+    \item Assisted in paper review and editing. 
+\end{itemize}
+\textbf{Dr. Chaitali Sarkar, Internal Medicine Doctor}
+\begin{itemize}
+    \item Assisted in the ECG screening process and the interpretation of ECGs for our viability study
+\end{itemize}
+\textcolor{red}{This research was supported in part by the University of Pittsburgh Center for Research Computing(CRC) through the resources provided. Specifically, this work used the H2P(Hail to Pitt) High Throughput Computing (HTC) cluster, which is supported by NSF award number OAC-2117681.}
+\newpage
+\printbibliography 
+
+\end{document}
